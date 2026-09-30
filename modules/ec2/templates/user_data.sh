@@ -1,22 +1,25 @@
 #!/bin/bash
 set -e
 
-# Update system
+# Update system and install Docker
 apt-get update
-apt-get install -y python3-pip python3-venv mysql-client
+apt-get install -y docker.io mysql-client
+
+# Start and enable Docker
+systemctl start docker
+systemctl enable docker
 
 # Create app directory
 mkdir -p /home/ubuntu/app
 cd /home/ubuntu/app
 
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
+# Create requirements.txt for Docker
+cat > requirements.txt << 'REQEOF'
+flask
+mysql-connector-python
+REQEOF
 
-# Install dependencies
-pip install flask mysql-connector-python
-
-# Create Flask application
+# Create the Python Flask application
 cat > app.py << 'APPEOF'
 from flask import Flask, request, redirect, url_for
 import mysql.connector
@@ -74,7 +77,7 @@ def home():
     conn = get_db_connection()
     messages = []
     error = None
-    
+
     if request.method == "POST":
         content = request.form.get("content")
         if content and conn:
@@ -100,11 +103,11 @@ def home():
         error = "Could not connect to database"
 
     messages_html = "".join([f"<div class='message'><p>{m[0]}</p><small>{m[1]}</small></div>" for m in messages])
-    
+
     return f"""
     <html>
     <head>
-        <title>Day 22 - RDS Demo App</title>
+        <title>Portfolio - RDS Web App</title>
         <style>
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: #f0f2f5; color: #333; }}
             .container {{ max-width: 800px; margin: 40px auto; padding: 20px; }}
@@ -126,17 +129,17 @@ def home():
     <body>
         <div class="container">
             <div class="card">
-                <h1>🚀 Terraform RDS Demo</h1>
+                <h1>🚀 Containerized AWS Architecture</h1>
                 <p>
-                    Status: 
+                    Status:
                     <span class="status {'connected' if not error else 'disconnected'}">
                         {'● Connected to RDS' if not error else '● Disconnected'}
                     </span>
                 </p>
-                <p>This application is running on EC2 and storing data in an RDS MySQL database.</p>
-                
+                <p>This application is running in a Docker container on EC2, connecting to RDS MySQL.</p>
+
                 {f'<div class="error">{error}</div>' if error else ''}
-                
+
                 <form method="POST" class="form-group">
                     <input type="text" name="content" placeholder="Type a message to save to the database..." required>
                     <div style="margin-top: 10px; text-align: right;">
@@ -149,7 +152,7 @@ def home():
                 <h2>Recent Messages</h2>
                 {messages_html if messages else '<p>No messages yet. Be the first to post!</p>'}
             </div>
-            
+
             <div style="text-align: center; color: #666;">
                 <p>Database Host: {DB_CONFIG['host']}</p>
             </div>
@@ -160,7 +163,6 @@ def home():
 
 @app.route("/health")
 def health():
-
     try:
         connection = get_db_connection()
         if connection and connection.is_connected():
@@ -244,24 +246,17 @@ if __name__ == "__main__":
     app.run(host='0.0.0.0', port=80)
 APPEOF
 
-# Create systemd service for the Flask app
-cat > /etc/systemd/system/flask-app.service << 'SERVICEEOF'
-[Unit]
-Description=Flask Web Application
-After=network.target
+# Create the Dockerfile
+cat > Dockerfile << 'DOCKEREOF'
+FROM python:3.9-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY app.py .
+EXPOSE 80
+CMD ["python", "app.py"]
+DOCKEREOF
 
-[Service]
-User=root
-WorkingDirectory=/home/ubuntu/app
-ExecStart=/home/ubuntu/app/venv/bin/python /home/ubuntu/app/app.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-SERVICEEOF
-
-# Enable and start the service
-systemctl daemon-reload
-systemctl enable flask-app
-systemctl start flask-app
+# Build and run the Docker container
+docker build -t portfolio-flask-app .
+docker run -d -p 80:80 --name flask-container --restart unless-stopped portfolio-flask-app
