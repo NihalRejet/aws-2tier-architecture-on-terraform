@@ -2,6 +2,13 @@
 
 This repository contains the Infrastructure-as-Code (IaC) deployment for a secure, highly available 2-tier web application environment on AWS.
 
+## Technologies Used
+* **Infrastructure as Code:** Terraform
+* **Cloud Provider:** AWS (VPC, EC2, RDS, Secrets Manager)
+* **Containerization:** Docker
+* **CI/CD & Security:** GitHub Actions, tfsec
+* **Application:** Python, Flask, MySQL
+
 ## Architecture Overview
 * **Networking:** Custom VPC with logically isolated Public Subnets (Web Tier) and Private Subnets (Database Tier), utilizing an Internet Gateway and NAT Gateway for secure traffic routing.
 * **Compute:** Auto-bootstrapped Ubuntu EC2 instance hosting a Python Flask application.
