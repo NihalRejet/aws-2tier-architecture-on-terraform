@@ -13,3 +13,8 @@ This repository contains the Infrastructure-as-Code (IaC) deployment for a secur
 2. Initialize Terraform: `terraform init`
 3. Review the execution plan: `terraform plan`
 4. Provision the infrastructure: `terraform apply`
+
+## Live Application Demo
+![Application UI](assets/demo1.png)
+
+![Database Health Check](assets/demo2.png)
