@@ -45,13 +45,19 @@ variable "instance_class" {
 }
 
 variable "allocated_storage" {
-  description = "Allocated storage in GB"
+  description = "Allocated storage in GB. Minimum 20 for General Purpose SSD on MySQL."
   type        = number
-  default     = 10
+  default     = 20
 }
 
 variable "engine_version" {
   description = "MySQL engine version"
   type        = string
   default     = "8.0"
+}
+
+variable "backup_retention_period" {
+  description = "Number of days to retain automated backups. 0 disables backups."
+  type        = number
+  default     = 7
 }

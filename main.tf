@@ -1,5 +1,8 @@
-# Day 22 - RDS Database Mini Project
-# Main Configuration - Root Module
+# AWS 2-Tier Architecture - Root Module
+#
+# Wires together the VPC, security groups, secrets, RDS and EC2 modules.
+# Module order matters: secrets -> rds -> ec2, because the generated password
+# flows from Secrets Manager into RDS and then into the application.
 
 terraform {
   required_version = ">= 1.0"
@@ -8,14 +11,27 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5"
+    }
   }
 }
 
 provider "aws" {
   region = var.aws_region
+
+  # Repo-wide tags. Modules still tag Name and Environment themselves so they
+  # stay reusable outside this root module.
+  default_tags {
+    tags = {
+      Project   = var.project_name
+      ManagedBy = "Terraform"
+    }
+  }
 }
 
-# Secrets Module
+# Generates the database password and stores it in Secrets Manager
 module "secrets" {
   source = "./modules/secrets"
 
@@ -24,7 +40,7 @@ module "secrets" {
   db_username  = var.db_username
 }
 
-# VPC Module
+# Networking: VPC, public subnet (web tier), private subnets (data tier)
 module "vpc" {
   source = "./modules/vpc"
 
@@ -36,32 +52,34 @@ module "vpc" {
   private_subnet_cidrs = var.private_subnet_cidrs
 }
 
-# Security Groups Module
+# Firewall rules for the web and database tiers
 module "security_groups" {
   source = "./modules/security_groups"
 
-  project_name = var.project_name
-  environment  = var.environment
-  vpc_id       = module.vpc.vpc_id
+  project_name     = var.project_name
+  environment      = var.environment
+  vpc_id           = module.vpc.vpc_id
+  ssh_allowed_cidr = var.ssh_allowed_cidr
 }
 
-# RDS Module
+# MySQL database, reachable only from the web tier
 module "rds" {
   source = "./modules/rds"
 
-  project_name         = var.project_name
-  environment          = var.environment
-  private_subnet_ids   = module.vpc.private_subnet_ids
-  db_security_group_id = module.security_groups.db_sg_id
-  db_name              = var.db_name
-  db_username          = var.db_username
-  db_password          = module.secrets.db_password
-  instance_class       = var.db_instance_class
-  allocated_storage    = var.db_allocated_storage
-  engine_version       = var.db_engine_version
+  project_name            = var.project_name
+  environment             = var.environment
+  private_subnet_ids      = module.vpc.private_subnet_ids
+  db_security_group_id    = module.security_groups.db_sg_id
+  db_name                 = var.db_name
+  db_username             = var.db_username
+  db_password             = module.secrets.db_password
+  instance_class          = var.db_instance_class
+  allocated_storage       = var.db_allocated_storage
+  engine_version          = var.db_engine_version
+  backup_retention_period = var.db_backup_retention_period
 }
 
-# EC2 Module
+# Web server running the Flask app in a Docker container
 module "ec2" {
   source = "./modules/ec2"
 

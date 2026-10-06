@@ -47,3 +47,9 @@ variable "db_name" {
   description = "Database name"
   type        = string
 }
+
+variable "root_volume_size" {
+  description = "Size of the root EBS volume in GB"
+  type        = number
+  default     = 10
+}
