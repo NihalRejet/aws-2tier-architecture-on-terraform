@@ -13,6 +13,11 @@ output "vpc_id" {
 # Web tier
 # ---------------------------------------------------------------------------
 
+output "web_server_instance_id" {
+  description = "ID of the web server EC2 instance"
+  value       = module.ec2.instance_id
+}
+
 output "web_server_public_ip" {
   description = "Public IP address of the web server"
   value       = module.ec2.public_ip
