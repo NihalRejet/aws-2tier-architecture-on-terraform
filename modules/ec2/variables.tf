@@ -31,20 +31,13 @@ variable "db_host" {
   type        = string
 }
 
-variable "db_username" {
-  description = "Database username"
-  type        = string
-  sensitive   = true
-}
-
-variable "db_password" {
-  description = "Database password"
-  type        = string
-  sensitive   = true
-}
-
 variable "db_name" {
   description = "Database name"
+  type        = string
+}
+
+variable "db_secret_arn" {
+  description = "ARN of the Secrets Manager secret holding the database username and password. The instance role may read only this secret."
   type        = string
 }
 

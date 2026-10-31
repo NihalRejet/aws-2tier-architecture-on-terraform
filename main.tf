@@ -1,8 +1,8 @@
 # AWS 2-Tier Architecture - Root Module
 #
 # Wires together the VPC, security groups, secrets, RDS and EC2 modules.
-# Module order matters: secrets -> rds -> ec2, because the generated password
-# flows from Secrets Manager into RDS and then into the application.
+# Module order matters: secrets -> rds -> ec2. The generated password goes
+# into RDS directly; the web server reads it from Secrets Manager at runtime.
 
 terraform {
   required_version = ">= 1.0"
@@ -79,7 +79,8 @@ module "rds" {
   backup_retention_period = var.db_backup_retention_period
 }
 
-# Web server running the Flask app in a Docker container
+# Web server running the Flask app in a Docker container. It gets the secret's
+# ARN, not the password: the app reads the credentials at start-up.
 module "ec2" {
   source = "./modules/ec2"
 
@@ -89,7 +90,6 @@ module "ec2" {
   public_subnet_id      = module.vpc.public_subnet_id
   web_security_group_id = module.security_groups.web_sg_id
   db_host               = module.rds.db_endpoint
-  db_username           = var.db_username
-  db_password           = module.secrets.db_password
   db_name               = var.db_name
+  db_secret_arn         = module.secrets.secret_arn
 }

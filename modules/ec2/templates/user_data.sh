@@ -3,6 +3,10 @@
 # Bootstraps the web tier: installs Docker, writes the Flask app and runs it
 # in a container on port 80.
 #
+# This script contains no secrets. The app is told where the database is and
+# which Secrets Manager secret to read; it fetches the username and password
+# itself at start-up, using the instance's IAM role.
+#
 # NOTE: this file is rendered by Terraform's templatefile(), so a dollar sign
 # followed by a brace is a Terraform substitution, not a shell variable. To get
 # a literal one through to the shell, double the dollar sign. Shell variables
@@ -36,25 +40,58 @@ mkdir -p /home/ubuntu/app
 cd /home/ubuntu/app
 
 cat > requirements.txt << 'REQEOF'
+boto3
 flask
 mysql-connector-python
 REQEOF
 
 cat > app.py << 'APPEOF'
 import html
+import json
 import os
 import time
 
+import boto3
 import mysql.connector
 from flask import Flask, redirect, request, url_for
 
 app = Flask(__name__)
 
+# Where the database is. Not secret, so these come in as plain environment
+# variables from `docker run` (see the bottom of the boot script).
+DB_HOST = os.environ["DB_HOST"]
+DB_NAME = os.environ["DB_NAME"]
+DB_SECRET_ARN = os.environ["DB_SECRET_ARN"]
+
+
+def load_db_credentials():
+    """Read the database username and password from Secrets Manager.
+
+    boto3 gets temporary AWS credentials from the EC2 instance role, so no
+    key or password is stored on the server. Right after boot the role can
+    take a few seconds to become usable, so retry before giving up. If it
+    still fails, the app exits and Docker's restart policy tries again.
+    """
+    client = boto3.client("secretsmanager")
+    last_error = None
+    for _ in range(10):
+        try:
+            response = client.get_secret_value(SecretId=DB_SECRET_ARN)
+            secret = json.loads(response["SecretString"])
+            return secret["username"], secret["password"]
+        except Exception as exc:
+            last_error = exc
+            time.sleep(5)
+    raise RuntimeError(f"Could not read the database secret: {last_error}")
+
+
+DB_USER, DB_PASSWORD = load_db_credentials()
+
 DB_CONFIG = {
-    "host": "${db_host}",
-    "user": "${db_username}",
-    "password": "${db_password}",
-    "database": "${db_name}",
+    "host": DB_HOST,
+    "user": DB_USER,
+    "password": DB_PASSWORD,
+    "database": DB_NAME,
 }
 
 
@@ -301,4 +338,12 @@ CMD ["python", "app.py"]
 DOCKEREOF
 
 docker build -t portfolio-flask-app .
-docker run -d -p 80:80 --name flask-container --restart unless-stopped portfolio-flask-app
+
+# Settings go in as environment variables. Only the secret's ARN is passed,
+# never the password itself.
+docker run -d -p 80:80 --name flask-container --restart unless-stopped \
+  -e DB_HOST="${db_host}" \
+  -e DB_NAME="${db_name}" \
+  -e DB_SECRET_ARN="${db_secret_arn}" \
+  -e AWS_DEFAULT_REGION="${aws_region}" \
+  portfolio-flask-app

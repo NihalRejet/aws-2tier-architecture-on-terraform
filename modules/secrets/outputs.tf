@@ -6,5 +6,7 @@ output "db_password" {
 
 output "secret_arn" {
   description = "ARN of the secret in Secrets Manager"
-  value       = aws_secretsmanager_secret.db_password.arn
+  # Taken from the secret *version*, not the secret, so anything that uses
+  # this ARN waits until the username and password are actually stored.
+  value = aws_secretsmanager_secret_version.db_password.arn
 }
