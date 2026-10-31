@@ -136,9 +136,16 @@ init_db()
 
 @app.route("/", methods=["GET", "POST"])
 def home():
-    conn = get_db_connection()
     messages = []
     error = None
+
+    # If the database is down, show the "Disconnected" status on the page
+    # instead of crashing with a 500 error.
+    try:
+        conn = get_db_connection()
+    except Exception as exc:
+        conn = None
+        error = f"Could not connect to database: {exc}"
 
     if request.method == "POST":
         content = request.form.get("content")
@@ -165,7 +172,7 @@ def home():
         except Exception as exc:
             error = str(exc)
     else:
-        error = "Could not connect to database"
+        error = error or "Could not connect to database"
 
     # Escape stored content before rendering - it came from user input
     messages_html = "".join(
